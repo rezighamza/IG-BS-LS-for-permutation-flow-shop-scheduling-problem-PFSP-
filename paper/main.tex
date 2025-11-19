@@ -1,0 +1,426 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{IG-BS-LS: An Iterated Greedy Algorithm with Beam Search Reconstruction for the Permutation Flow Shop Problem}
+
+\author{\IEEEauthorblockN{Hamza REZIG\IEEEauthorrefmark{1}, Yasmine CHOUKRANE\IEEEauthorrefmark{1}, Oussama CHERGUELAINE\IEEEauthorrefmark{1}, Abdellah ARROUCHE\IEEEauthorrefmark{1}, \\ Meriem RAHOU\IEEEauthorrefmark{1}, Malika BESSEDIK\IEEEauthorrefmark{2}}
+\IEEEauthorblockA{\IEEEauthorrefmark{1}Ecole Nationale Supérieure d'Informatique (ESI), BP 68M - 16270 Oued Smar, Algiers, Algeria}
+\IEEEauthorblockA{\IEEEauthorrefmark{2}Laboratoire des Méthodes de Conception de Systèmes (LMCS), ESI, BP 68M - 16270 Oued Smar, Algiers, Algeria}
+\{lh\_rezig, ly\_choukrane, lo\_cherquelaine, la\_arrouche, lm\_rahou, m\_bessedik\}@esi.dz
+}
+
+\maketitle
+
+\begin{abstract}
+This paper proposes a hybrid metaheuristic, Iterated Greedy with Beam Search and Local Search (IG-BS-LS), for Permutation Flow Shop Problem (PFSP) with makespan minimization. The algorithm integrates an Iterated Greedy framework with a Beam Search procedure, with Limited Discrepancy Search, for solution reconstruction. We also employed effective destruction strategies and adaptive guide functions. The proposed IG-BS-LS is evaluated on standard Taillard benchmark instances, demonstrating its capability to find high-quality, near-optimal solutions. While the performed tests indicate that IG-BS-LS outperforms several state-of-the-art algorithms, achieving competitive results in terms of solution quality and computational efficiency, the algorithm's performance is very sensitive to the choice of parameters, which is a challenge especially because of the large number of parameters involved.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Permutation Flow Shop Problem, Iterated Greedy, Beam Search, Local Search, Metaheuristic, Makespan Minimization.
+\end{IEEEkeywords}
+
+\section{INTRODUCTION}
+The Permutation Flow Shop Problem (PFSP) is considered as a cornerstone in the field of scheduling research, primarily due to its significant practical implications in diverse manufacturing and production environments, and also for its inherent combinatorial complexity [1]. In this problem, a set of $N$ jobs must be processed through $M$ machines, following an identical technological sequence for all jobs.
+
+The PFSP is known to be NP-hard for $M \geq 3$ machines [2], and the use of exact optimization methods is viable only for instances of modest scale. Consequently, a vast amount of research has focused on developing effective heuristics and metaheuristics. Early contributions included constructive heuristics such as the Palmer heuristic [3], the CDS heuristic [4], and notably, the NEH heuristic [5], which remains a widely adopted benchmark due to its efficacy.
+
+As the field evolved, metaheuristics emerged to provide more robust solutions for larger and more complex instances. These approaches range from single-solution based methods like Simulated Annealing (SA) and Iterated Local Search (ILS) [6], to population-based techniques such as Genetic Algorithms (GA). Among these, the Iterated Greedy (IG) algorithm, introduced by Ruiz and Stützle [7], has proven to be a particularly powerful and adaptable framework for tackling permutation-based scheduling problems. IG algorithms operate by iteratively deconstructing a current solution and then reconstructing a new one, often incorporating a local search phase for intensification. Furthermore, Beam Search (BS) [8] is a tree search heuristic that explores a limited number of promising nodes at each level, and has been effectively utilized, sometimes within hybrid frameworks, for scheduling problems [9].
+
+This paper introduces a novel hybrid metaheuristic, termed IG-BS-LS, designed to effectively solve the PFSP with makespan minimization. The core contribution of this work lies in the integration of an Iterated Greedy (IG) framework with a sophisticated Beam Search (BS) algorithm, enhanced by Limited Discrepancy Search (LDS) [10], for the solution reconstruction phase. This approach aims to effectively combine the exploratory capabilities of IG and the high-quality solution construction provided by BS-LDS, which is a departure from simpler greedy reconstruction methods often found in IG implementations. An efficient insertion-based Local Search (LS) is also employed to further intensify the search around promising solutions. The proposed IG-BS-LS algorithm is evaluated on well-known Taillard benchmark instances [11].
+
+The remainder of this paper is organized as follows: Section II formally defines the Permutation Flow Shop Problem. Section III provides a detailed description of the proposed IG-BS-LS algorithm and its components. Section IV outlines the experimental setup, including benchmark instances and performance metrics. Section V presents and discusses the computational results. Finally, Section VI offers concluding remarks and suggests avenues for future research.
+
+\section{PROBLEM FORMULATION}
+The Permutation Flow Shop Problem (PFSP) under consideration addresses the scheduling of a set of $N$ independent jobs, denoted as $J = \{J_1, J_2, \dots, J_N\}$, that must be processed on a series of $M$ distinct machines, $Mach = \{M_1, M_2, \dots, M_M\}$. All jobs follow the same technological routing, visiting machines in the order $M_1, M_2, \dots, M_M$. The processing of job $J_i$ on machine $M_k$ requires a known, deterministic, and non-negative processing time, denoted as $p_{i,k}$.
+
+A key characteristic of the PFSP is the permutation constraint: the sequence in which jobs are processed is the same on all machines. Once a job sequence $\pi = (\pi(1), \pi(2), \dots, \pi(N))$ is determined for the first machine, this order is maintained for all subsequent machines. Here, $\pi(j)$ represents the $j$-th job in the sequence.
+
+Standard assumptions for this problem variant, as commonly found in literature such as Taillard [11] and general scheduling texts [1], include:
+\begin{itemize}
+    \item All jobs are available for processing at time zero.
+    \item No preemption is allowed; once an operation starts on a machine, it must be completed without interruption.
+    \item Each machine can process at most one job at a time, and each job can be processed on at most one machine at a time.
+    \item Setup times are considered negligible or are included in the processing times.
+    \item In-process buffers between machines are assumed to have unlimited capacity.
+\end{itemize}
+
+Let $C(\pi(j), k)$ denote the completion time of the $j$-th job in sequence $\pi$ on machine $M_k$. The completion times can be calculated recursively as follows:
+\begin{itemize}
+    \item For the first job in the sequence ($\pi(1)$):
+    \begin{equation}
+    C(\pi(1), 1) = p_{\pi(1),1}
+    \end{equation}
+    \begin{equation}
+    C(\pi(1), k) = C(\pi(1), k-1) + p_{\pi(1),k}, \quad \forall k = 2, \dots, M
+    \end{equation}
+    \item For subsequent jobs in the sequence ($j=2, \dots, N$):
+    \begin{equation}
+    C(\pi(j), 1) = C(\pi(j-1), 1) + p_{\pi(j),1}
+    \end{equation}
+    \begin{equation}
+    \begin{split}
+    C(\pi(j), k) = \max\{C(\pi(j-1), k), C(\pi(j), k-1)\} \\
+    + p_{\pi(j),k}, \quad \forall k = 2, \dots, M
+    \end{split}
+    \end{equation}
+\end{itemize}
+
+The objective of the PFSP is to find an optimal job permutation $\pi^*$ that minimizes the makespan, $C_{\max}$, which is defined as the completion time of the last job in the sequence on the final machine:
+\begin{equation}
+C_{\max}(\pi^*) = \min_{\pi \in \Pi}\{C(\pi(N), M)\}
+\end{equation}
+where $\Pi$ is the set of all possible $N!$ permutations. As established by Garey et al. [2], this problem is NP-hard for $M \geq 3$.
+
+\section{THE PROPOSED IG-BS-LS ALGORITHM}
+The proposed Iterated Greedy with Beam Search and Local Search (IG-BS-LS) algorithm is a hybrid metaheuristic that combines Iterated Greedy framework and Beam Search enhanced with Limited Discrepancy Search (BS-LDS). An overview of the IG-BS-LS framework is presented below.
+
+\subsection{Overall Framework}
+The IG-BS-LS algorithm starts by generating a good quality initial solution using the NEH heuristic [5], which may (optionally) be improved by an initial local search. This solution serves as both the initial current solution ($S_{\text{current}}$) and the initial best-so-far solution ($S_{\text{best}}$). The core of the algorithm is an iterative loop that continues until a predefined stopping criterion is met (a maximum number of iterations or a time limit).
+Within each iteration of this main loop, the following phases are executed:
+\begin{enumerate}
+    \item \textbf{Stagnation Detection and Destruction Target Selection:} The algorithm checks if the search has stagnated (i.e., $S_{\text{best}}$ has not improved for a specified number of iterations, the 'stagnation\_limit'). If stagnation is detected, a perturbation move is flagged. The solution targeted for destruction is typically $S_{\text{current}}$. The number of jobs to destroy, $k_{\text{destroy}}$, is increased for a perturbation move (to 'perturb\_k\_destroy\_percent' of $N$) to promote greater diversification; otherwise, the standard $k_{\text{destroy}}$ (derived from 'k\_destroy\_percent' of $N$) is used.
+    \item \textbf{Destruction Phase:} A set of $k_{\text{destroy}}$ jobs is removed from the target solution using a chosen destruction strategy (e.g., Block Removal or Shaw-like Removal), resulting in a partial sequence.
+    \item \textbf{Reconstruction Phase:} The removed jobs are reinserted into the partial sequence to form a new complete solution ($S_{\text{new}}$) using Beam Search guided by specific heuristic functions and incorporating Limited Discrepancy Search (BS-LDS).
+    \item \textbf{Acceptance Criterion:} The newly reconstructed solution $S_{\text{new}}$ is evaluated.
+    \begin{itemize}
+        \item If the current iteration is a perturbation move (due to stagnation), $S_{\text{new}}$ unconditionally replaces $S_{\text{current}}$ to help escape local optima.
+        \item Otherwise (not a perturbation move), $S_{\text{new}}$ replaces $S_{\text{current}}$ if its makespan is better than or equal to that of $S_{\text{current}}$ ($C_{\max}(S_{\text{new}}) \leq C_{\max}(S_{\text{current}})$).
+    \end{itemize}
+    \item \textbf{Update Best Solution:} If $S_{\text{new}}$ (or $S_{\text{current}}$ after acceptance and potential update by $S_{\text{new}}$) has a better makespan than $S_{\text{best}}$, then $S_{\text{best}}$ is updated. If a new $S_{\text{best}}$ is found, the stagnation counter is reset.
+    \item \textbf{Iteration counters and the stagnation counter} (if no new $S_{\text{best}}$ and not a perturbation that reset it) are updated.
+\end{enumerate}
+After the main loop terminates, an optional final local search (if enabled by parameters) can be applied to $S_{\text{best}}$. The overall best solution found, $S_{\text{best}}$, is then returned.
+
+\begin{algorithm}[ht]
+\caption{IG-BS-LS Algorithm}
+\label{alg:ig-bs-ls}
+\begin{algorithmic}[1]
+\STATE $S_{\text{current}} \leftarrow \text{NEH}()$
+\STATE $S_{\text{current}}$ optionally improved by initial local search
+\STATE $S_{\text{best}} \leftarrow S_{\text{current}}$
+\STATE stagnation $\leftarrow 0$
+\WHILE{stopping criterion not met}
+    \IF{stagnation $>$ STAGNATION\_LIMIT}
+        \STATE $k \leftarrow \text{PerturbationSize}()$
+        \STATE stagnation $\leftarrow 0$
+        \STATE isPerturb $\leftarrow$ true
+    \ELSE
+        \STATE $k \leftarrow \text{NormalDestroySize}()$
+        \STATE isPerturb $\leftarrow$ false
+    \ENDIF
+    \STATE $(S_{\text{partial}}, R) \leftarrow \text{Destroy}(S_{\text{current}}, k)$
+    \STATE $S_{\text{new}} \leftarrow \text{ReconstructBSLDS}(S_{\text{partial}}, R)$
+    \IF{$S_{\text{new}}$ is valid}
+        \IF{isPerturb or $C_{\max}(S_{\text{new}}) \leq C_{\max}(S_{\text{current}})$}
+            \STATE $S_{\text{current}} \leftarrow S_{\text{new}}$
+        \ENDIF
+        \IF{$C_{\max}(S_{\text{current}}) < C_{\max}(S_{\text{best}})$}
+            \STATE $S_{\text{best}} \leftarrow S_{\text{current}}$
+            \STATE stagnation $\leftarrow 0$
+        \ELSE \IF{not isPerturb}
+            \STATE stagnation $\leftarrow$ stagnation + 1
+        \ENDIF \ENDIF
+    \ENDIF
+\ENDWHILE
+\IF{APPLY\_FINAL\_LS}
+    \STATE $S_{\text{best}} \leftarrow \text{FinalLocalSearch}(S_{\text{best}})$
+\ENDIF
+\RETURN $S_{\text{best}}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Initial Solution Generation and Local Search}
+\subsubsection{NEH Heuristic} The initial solution for the IG-BS-LS algorithm is generated using the well-known NEH heuristic, proposed by Nawaz, Enscore, and Ham [5]. This heuristic is widely recognized for its simplicity and effectiveness in providing good quality starting solutions for the PFSP and is often used as a benchmark for comparison [12], [13]. The procedural steps of the NEH heuristic, as adapted for our implementation, are as follows:
+\begin{enumerate}
+    \item \textbf{Job Prioritization:} For each job $J_i$ ($i=1, \dots, N$), calculate its total processing time across all $M$ machines, $TPT_i = \sum_{k=1}^{M} p_{i,k}$.
+    \item \textbf{Initial Sorting:} Create an ordered list of jobs, $L_{\text{sorted}}$, by sorting all $N$ jobs in descending (non-increasing) order of their $TPT_i$ values.
+    \item \textbf{Initial Partial Sequence Construction:} Select the first two jobs from $L_{\text{sorted}}$. Evaluate the makespan for both possible two-job sequences. The sequence yielding the smaller makespan forms the initial partial schedule.
+    \item \textbf{Iterative Insertion:} For each subsequent job $J_{\text{next}}$ taken from $L_{\text{sorted}}$ (from the third job up to the $N$-th job):
+    \begin{enumerate}
+        \item Consider inserting $J_{\text{next}}$ into all possible $s+1$ positions of the current partial sequence of $s$ already scheduled jobs (i.e., before the first job, between any two adjacent jobs, or after the last job).
+        \item For each of these $s+1$ potential sequences, calculate the partial makespan.
+        \item Select the insertion position that results in the minimum partial makespan. Permanently insert $J_{\text{next}}$ at this position to update the current partial sequence.
+    \end{enumerate}
+    \item \textbf{Completion:} Repeat step 4 until all $N$ jobs from $L_{\text{sorted}}$ have been inserted into the sequence. The final sequence of $N$ jobs is the solution generated by the NEH heuristic.
+\end{enumerate}
+The complexity of the NEH heuristic, when implemented efficiently for makespan calculation during insertions, is typically $O(N^2M)$ [12]. This constructive heuristic provides a strong foundation for the subsequent phases of the IG-BS-LS algorithm.
+
+\subsubsection{Local Search (Best Insertion)}
+The IG-BS-LS algorithm employs an insertion-based local search after the initial NEH construction and as an optional final step on the best-found solution to potentially improve the final solution. This procedure is a common and effective intensification strategy, often referred to as Reinsertion or specifically, in our case, a Best Insertion Search. The search operates iteratively as follows:
+
+The core idea is to systematically explore the neighborhood of the current solution by removing each job and reinserting it into all other possible positions. The process aims to find a sequence with an improved (i.e., lower) makespan. Let $S_{\text{current}}$ be the sequence undergoing local search. The procedure can be outlined as:
+\begin{enumerate}
+    \item \textbf{Iterative Improvement Loop:} The local search continues as long as improvements are found in a full pass over all jobs, or for a predefined maximum number of iterations to manage computational effort (e.g., $N \times N$ iterations, where $N$ is the number of jobs).
+    \item \textbf{Job Selection for Reinsertion:} For each job $J_i$ in $S_{\text{current}}$ (iterating from $i=1$ to $N$):
+    \begin{enumerate}
+        \item Temporarily remove $J_i$ from $S_{\text{current}}$, creating a partial sequence $S'_{\text{current}}$ of $N-1$ jobs.
+        \item Explore Insertion Positions: Consider inserting $J_i$ into every possible position $j$ within $S'_{\text{current}}$ (from position 0 before the first job in $S'_{\text{current}}$, up to position $N-1$ after the last job). This yields $N$ candidate sequences.
+        \item Evaluation: For each candidate sequence formed by reinserting $J_i$ at position $j$, calculate its makespan.
+        \item Identify Best Move for $J_i$: Keep track of the reinsertion (job $J_i$ at position $j'$) that yields the lowest makespan among all $N$ explored positions for $J_i$.
+    \end{enumerate}
+    \item \textbf{Update Current Solution (Best Improvement Strategy):} After evaluating all $N$ jobs for reinsertion (i.e., after one full pass), if the best reinsertion found across all jobs in this pass leads to a makespan $C_{\max}(S_{\text{new}})$ that is strictly better than $C_{\max}(S_{\text{current}})$, then $S_{\text{current}}$ is updated to $S_{\text{new}}$. The flag indicating an improvement in the current pass is set to true.
+    \item \textbf{Termination of Pass:} If no job reinsertion in the entire pass resulted in an improvement, the iterative improvement loop (Step 1) terminates. Otherwise, it proceeds to the next pass.
+\end{enumerate}
+
+\subsection{Iterated Greedy Loop Components}
+\subsubsection{Destruction Strategies} In the destruction phase, a number of jobs, $k_{\text{destroy}}$, are removed from the current solution to create a partial solution. The value of $k_{\text{destroy}}$ is typically a percentage of the total number of jobs $N$, (e.g., k\_destroy\_percent $\times N$), and may be increased during perturbation moves (see Section III-C3). The IG-BS-LS algorithm implements two primary destruction strategies:
+\begin{itemize}
+    \item \textbf{Block Removal:} This is a straightforward and commonly used destruction operator in Iterated Greedy algorithms [7]. A contiguous block of $k_{\text{destroy}}$ jobs is selected for removal. The starting position of this block within $S_{\text{current}}$ (which has length $N$) is chosen randomly from all feasible starting positions (i.e., from index 0 to $N - k_{\text{destroy}}$). The jobs within this randomly selected block are removed from $S_{\text{current}}$. The remaining jobs form two (possibly empty) ordered sub-sequences, which constitute the prefix and suffix of the resulting partial solution. The $k_{\text{destroy}}$ removed jobs form the set of jobs to be reinserted by the reconstruction phase.
+    \item \textbf{Shaw-like Removal (inspired by Shaw [14]):} This strategy, adapted from the Shaw Removal heuristic often used in Large Neighborhood Search and related metaheuristics [14], [15], aims to remove jobs that are "related" or "similar" to each other, based on the premise that reinserting similar jobs together might lead to good quality solutions. The procedure is as follows:
+    \begin{enumerate}
+        \item A "seed" job, $J_{\text{seed}}$, is randomly selected from the $N$ jobs currently in $S_{\text{current}}$. This job is added to the set of removed jobs, $R$.
+        \item The relatedness or similarity between $J_{\text{seed}}$ and every other job $J_j$ remaining in $S_{\text{current}}$ is calculated. In our implementation, relatedness is measured by the sum of absolute differences in processing times on each machine:
+        \begin{equation}
+        \text{Relatedness}(J_{\text{seed}}, J_j) = \sum_{m=1}^{M} |p_{\text{seed},m} - p_{j,m}|
+        \end{equation}
+        A lower value indicates higher relatedness (more similar).
+        \item The remaining $N-1$ jobs in $S_{\text{current}}$ (excluding $J_{\text{seed}}$) are sorted in non-decreasing order based on their relatedness to $J_{\text{seed}}$.
+        \item The $k_{\text{destroy}}-1$ jobs that are most related (i.e., have the smallest relatedness values) to $J_{\text{seed}}$ are selected from this sorted list and added to the set $R$.
+        \item The jobs in $R$ (now containing $k_{\text{destroy}}$ jobs) are removed from $S_{\text{current}}$, and the remaining jobs, in their original order, form the partial sequence.
+    \end{enumerate}
+    To potentially enhance the disruptive power and explore critical boundary regions, an optional mechanism can be employed:
+    \begin{itemize}
+        \item \textbf{Boundary Job Addition:} A small, predefined number of jobs are additionally removed from the end of the prefix and the beginning of the suffix of the partial sequence created after the initial Shaw-like removal. These boundary jobs are also added to the set $R$. This slightly increases the total number of jobs removed and focuses destruction around the "seams" of the partial solution.
+    \end{itemize}
+\end{itemize}
+The choice between Block Removal and Shaw-like Removal can be fixed for a run or determined dynamically, potentially as part of the algorithm's parameter tuning. The set of removed jobs $R$ and the ordered partial sequence (prefix and suffix parts) are then passed to the reconstruction phase.
+
+\subsubsection{Reconstruction by Beam Search with LDS} The reconstruction phase is responsible for reinserting the set of removed jobs, $R$, into the partial sequence (comprising a fixed prefix and a fixed suffix, one or both of which might be empty) to form a new, complete candidate solution. Unlike simpler greedy reconstruction methods often found in IG algorithms, IG-BS-LS employs a more sophisticated approach: Beam Search (BS) [8] augmented with Limited Discrepancy Search (LDS) [10]. This combination aims to explore a promising subset of the vast search space of possible reinsertions more thoroughly.
+
+The reconstruction process iteratively inserts one job from the set $R$ at a time. At each step of this iterative insertion process, a search tree is implicitly explored, where each node represents a partial schedule with some jobs from $R$ already reinserted.
+
+\paragraph{Beam Search (BS) Core} At each level of the reconstruction (corresponding to deciding which job from $R$ to insert next and where, though in this context it's typically appending to the current prefix being built), BS maintains a "beam" of a limited number of the most promising partial solutions (nodes). Let $N_R = |R|$ be the number of jobs to reinsert. The reconstruction proceeds for $N_R$ steps.
+\begin{itemize}
+    \item \textbf{Node Representation (IBSNode):} Each node in the beam search, an 'IBSNode', stores critical information:
+    \begin{itemize}
+        \item The current 'scheduled\_sequence' (prefix + already reinserted jobs from $R$).
+        \item The set of 'unscheduled\_jobs' (remaining jobs in $R$).
+        \item The 'front\_completion\_times' vector (completion times on all $M$ machines after the last job in 'scheduled\_sequence').
+        \item A 'guide\_value' (heuristic estimate of the quality of completing the schedule from this node).
+        \item The 'depth' of the node (number of jobs scheduled from $R$ so far).
+        \item The 'discrepancies\_used' to reach this node (for LDS).
+    \end{itemize}
+    \item \textbf{Beam Width:} This parameter defines the maximum number of nodes kept in the beam at each level of the search. After expanding all nodes from the current beam to generate children for the next level, only the top 'Beam Width' child nodes (according to their guide values and discrepancies, see below) are retained for further expansion.
+    \item \textbf{Node Expansion:} To expand a parent ‘IBSNode' from the current beam, each job $J_{\text{next}} \in \text{unscheduled\_jobs}$ is considered for insertion next. For each such $J_{\text{next}}$:
+    \begin{itemize}
+        \item A new child 'IBSNode' is created by appending $J_{\text{next}}$ to the parent's 'scheduled\_sequence'.
+        \item The 'front\_completion\_times' for this child node are updated based on the parent's 'front\_completion\_times' and the processing times of $J_{\text{next}}$.
+        \item The 'unscheduled\_jobs' set is updated by removing $J_{\text{next}}$.
+        \item The guide value for this child node is calculated using a selected guide function.
+    \end{itemize}
+\end{itemize}
+
+\paragraph{Guide Functions (‘GuideFunctions’)} The selection of nodes to keep in the beam is guided by heuristic evaluation functions. For this we took inspiration from guidance strategies discussed in recent beam search literature for the PFSP [16]:
+\begin{itemize}
+    \item \textbf{Makespan Lower Bound ($G_{\text{LB}}$):} This function estimates a lower bound on the final makespan if the current partial schedule is completed. It is calculated as the sum of the current completion time on the last machine (from 'front\_completion\_times' of the current node) and the sum of processing times on the last machine for all remaining 'unscheduled\_jobs'. A cache is used to speed up repeated calculations for the sum of remaining processing times. While a fundamental concept, this bound alone can be less effective in early stages of the search [16].
+    \item \textbf{Weighted Alpha Guide ($G_{\text{wa}}$):} This function, similar in principle to combined guides discussed by Libralesso et al. [16], provides a more nuanced evaluation by combining the makespan lower bound $G_{\text{LB}}$ with a measure of the total idle time accumulated in the 'scheduled\_sequence' so far. The guide value is $G_{\text{wa}} = \alpha \cdot G_{\text{LB}} + (1 - \alpha) \cdot C_{\text{factor}} \cdot \text{`TotalIdleTime`}$. The weight $\alpha$ is adapted dynamically during the reconstruction process, typically varying with the depth of reconstruction (e.g., $\alpha = \text{current\_reconstruction\_depth} / \text{total\_jobs\_to\_reinsert}$). This adaptation strategy, also explored in [16], shifts focus from minimizing idle time early in the reconstruction (when $\alpha$ is small) to prioritizing the makespan bound as more jobs are scheduled (as $\alpha$ approaches 1). The $C_{\text{factor}}$ is a scaling constant (e.g., $N/M$).
+\end{itemize}
+
+\paragraph{Limited Discrepancy Search (LDS) Integration} LDS [10] is integrated with BS to allow exploration of paths that deviate from the purely greedy choices suggested by the guide function.
+\begin{itemize}
+    \item When expanding a parent ‘IBSNode', its potential child nodes (one for each 'unscheduled\_job' that could be scheduled next) are first generated and their guide values calculated.
+    \item These children are then sorted based on their guide values (lower is better).
+    \item For each child at rank $r$ (0-indexed) in this sorted list:
+    \begin{itemize}
+        \item The number of discrepancies incurred by choosing this child is $r$.
+        \item The total 'discrepancies\_used' for this child node is the parent's 'discrepancies\_used' + $r$.
+    \end{itemize}
+    \item A child node is only considered for inclusion in the next beam if its total 'discrepancies\_used' does not exceed a predefined maximum discrepancy limit.
+    \item Furthermore, only a limited number of top-ranked children from the sorted list are typically processed to manage computational effort.
+    \item \textbf{Prioritization in Beam:} When selecting nodes for the next beam from all generated (and valid by discrepancy count) children, the 'IBSNode's comparison logic prioritizes nodes first by their 'guide\_value', then by fewer 'discrepancies\_used' (as a tie-breaker), and finally by greater 'depth' (another tie-breaker).
+\end{itemize}
+
+\paragraph{Reconstruction Process Completion} The BS-LDS process continues for $N_R$ levels, inserting one job from $R$ at each level. After $N_R$ levels, the nodes remaining in the beam represent complete reinsertions of all jobs from $R$. The 'scheduled\_sequence' of the best node in the final beam (typically the one with the lowest actual makespan after appending the fixed suffix, if any) forms the newly reconstructed solution $S_{\text{new}}$. If the beam becomes empty before all jobs are reinserted, or if no valid complete sequence is found, the reconstruction may be considered to have failed for that attempt.
+
+\subsubsection{Acceptance Criterion and Stagnation Management} After a new solution $S_{\text{new}}$ is generated by the reconstruction phase, a decision must be made whether to accept it as the new current solution $S_{\text{current}}$ for the next iteration. Furthermore, mechanisms are needed to handle search stagnation and prevent premature convergence.
+\paragraph{Acceptance Criterion} The IG-BS-LS algorithm employs a specific acceptance criterion that depends on whether the current iteration resulted from a stagnation-induced perturbation:
+\begin{itemize}
+    \item \textbf{During Perturbation Moves:} If the current iteration was triggered by reaching the 'stagnation\_limit' (see below), the newly reconstructed solution $S_{\text{new}}$ is unconditionally accepted as the new $S_{\text{current}}$. This is a diversification strategy designed to move the search to a potentially different region of the solution space, even if $S_{\text{new}}$ is worse than the previous $S_{\text{current}}$.
+    \item \textbf{During Normal Iterations:} In standard iterations (not resulting from a perturbation), $S_{\text{new}}$ replaces $S_{\text{current}}$ if its makespan $C_{\max}(S_{\text{new}})$ is better than or equal to the makespan of the current solution, $C_{\max}(S_{\text{current}})$. That is, $S_{\text{current}} \leftarrow S_{\text{new}}$ if $C_{\max}(S_{\text{new}}) \leq C_{\max}(S_{\text{current}})$. Accepting solutions of equal quality can help explore plateaus in the search landscape.
+\end{itemize}
+The best solution found throughout the entire search, $S_{\text{best}}$, is updated whenever $S_{\text{current}}$ (after a potential update by $S_{\text{new}}$) yields a makespan strictly better than the current $C_{\max}(S_{\text{best}})$.
+
+\paragraph{Stagnation Management} To prevent the search from becoming trapped in local optima for extended periods and to encourage broader exploration, a stagnation handling mechanism is implemented. This mechanism is controlled by the 'stagnation\_limit' parameter, which defines the maximum number of consecutive IG iterations without an improvement in $S_{\text{best}}$.
+\begin{itemize}
+    \item \textbf{Detection:} If the ‘stagnation\_counter‘ (which tracks iterations without improvement to $S_{\text{best}}$) reaches or exceeds ‘stagnation\_limit', the search is considered to be stagnated.
+    \item \textbf{Perturbation Action:} Upon detecting stagnation:
+    \begin{enumerate}
+        \item A strong perturbation is applied. The destruction phase (Section III-C1) is invoked using the current solution $S_{\text{current}}$ as the target, but with a significantly larger number of jobs to be removed.
+        \item The solution reconstructed after this large-scale destruction is then unconditionally accepted as the new $S_{\text{current}}$, as described in the acceptance criterion above.
+        \item The 'stagnation\_counter' is reset to zero.
+    \end{enumerate}
+    \item \textbf{Resetting Stagnation Counter:} The 'stagnation\_counter' is also reset to zero whenever a new overall best solution $S_{\text{best}}$ is found during any iteration. If an iteration (that was not a perturbation) does not yield a new $S_{\text{best}}$, the 'stagnation\_counter' is incremented.
+\end{itemize}
+
+\section{EXPERIMENTAL SETUP}
+To evaluate the performance of the proposed IG-BS-LS algorithm, extensive computational experiments were conducted. This section details the benchmark instances used, the parameter settings for the algorithm, the metrics used for performance evaluation, and the computational environment.
+
+\subsection{Benchmark Instances}
+The performance of the IG-BS-LS algorithm was assessed using the well-known Taillard benchmark instances for the Permutation Flow Shop Problem [11]. These instances are widely used in the literature for comparing FSP scheduling algorithms. Specifically, three sets of instances from this benchmark suite were selected, varying in size:
+\begin{itemize}
+    \item \textbf{tai20\_X:} Instances with 20 jobs and $M \in \{5, 10, 20\}$ machines.
+    \item \textbf{tai50\_X:} Instances with 50 jobs and $M \in \{5, 10, 20\}$ machines.
+    \item \textbf{tai100\_X:} Instances with 100 jobs and $M \in \{5, 10, 20\}$ machines.
+\end{itemize}
+In our experiments, we used the specific sets tai20\_5 (10 instances), tai50\_10 (10 instances), and tai100\_10 (10 instances), as detailed in the results section (Section V). The known upper bounds (UB) for these instances, as provided by Taillard or updated in subsequent literature, were used for calculating relative performance.
+
+\subsection{Parameter Settings}
+The IG-BS-LS algorithm involves several parameters that can influence its performance. To optimize these parameters, a tuning phase was conducted using the 'scikit-optimize' ('skopt') Python library, which implements Bayesian optimization techniques. This tuning was performed separately for each main benchmark set (e.g., for all tai20\_5 instances, for all tai50\_10, etc.) using one or a few representative instances from each set to guide the optimization process. The specific parameter configurations used for each benchmark set are detailed in Section V (Table I).
+
+The stopping criterion for each run on an instance was primarily a time limit, calculated based on instance size (e.g., a factor multiplied by $N \times M$). A maximum number of IG iterations (e.g., 1000 or 2000) also served as a cap.
+
+\subsection{Performance Metrics}
+The effectiveness and efficiency of the IG-BS-LS algorithm were evaluated based on the following:
+\begin{itemize}
+    \item \textbf{Makespan ($C_{\max}$):} The primary objective function value, representing the total time to complete all jobs. Lower values indicate better performance.
+    \item \textbf{Average Relative Percentage Deviation (ARPD) from Upper Bound (UB):} This metric measures the quality of the obtained solutions relative to the best-known upper bounds (UBs) for the Taillard instances. It is calculated for a set of instances $I$ as:
+    \begin{equation}
+    \text{ARPD} (\%) = \frac{1}{|I|} \sum_{i \in I} \left( \frac{C_{\max_i}^{\text{Solver}} - C_{\max_i}^{\text{UB}}}{C_{\max_i}^{\text{UB}}} \right) \times 100
+    \end{equation}
+    where $C_{\max_i}^{\text{Solver}}$ is the makespan obtained by IG-BS-LS for instance $i$, and $C_{\max_i}^{\text{UB}}$ is its best-known upper bound.
+    \item \textbf{Average Percentage Improvement over NEH (\% Impr. NEH):} This metric quantifies the improvement achieved by IG-BS-LS compared to the makespan obtained by the standalone NEH heuristic (which serves as the initial solution seed). It is calculated for a set of instances $I$ as:
+    \begin{equation}
+    \text{\% Impr. NEH} = \frac{1}{|I|} \sum_{i \in I} \left( \frac{C_{\max_i}^{\text{NEH}} - C_{\max_i}^{\text{Solver}}}{C_{\max_i}^{\text{NEH}}} \right) \times 100
+    \end{equation}
+    where $C_{\max_i}^{\text{NEH}}$ is the makespan obtained by the NEH heuristic for instance $i$.
+\end{itemize}
+
+\section{RESULTS AND DISCUSSION}
+This section presents the computational results obtained by applying the proposed IG-BS-LS algorithm to the Taillard benchmark instances detailed in Section IV-A. The performance is evaluated based on the metrics defined in Section IV-C, focusing on average results for each benchmark set. The reported results are based on the best makespan found over 5 independent runs per instance.
+
+\begin{table*}[ht]
+\caption{TUNED PARAMETER CONFIGURATIONS FOR IG-BS-LS PER BENCHMARK SET}
+\label{tab:params}
+\centering
+\begin{tabular}{lccc}
+\hline
+\textbf{Parameter} & \textbf{tai20\_5} & \textbf{tai50\_10} & \textbf{tai100\_10} \\
+& \textbf{(20J, 5M)} & \textbf{(50J, 10M)} & \textbf{(100J, 10M)} \\
+\hline
+k\_destroy\_percent & 0.37 & 0.31 & 0.20 \\
+perturb\_k\_destroy\_percent & 0.80 & 0.45 & 0.48 \\
+stagnation\_limit & 95 & 90 & 28 \\
+destruction\_method & 'block' & 'block' & 'shaw' \\
+add\_boundary\_jobs\_to\_destroy & False & False & False \\
+guide\_choice\_recon & 'walpha\_fwd' & 'walpha\_fwd' & 'makespan\_bound\_fwd' \\
+ibs\_beam\_width\_recon & 32 & 25 & 24 \\
+max\_discrepancies\_recon & 2 & 0 & 1 \\
+max\_children\_lds\_recon & 2 & 6 & 5 \\
+InitialLSapplication & True & True & True \\
+FinalLSapplication & True & True & True \\
+TimeLimitperInstance(s) & $\approx 30$ & $\approx 60$ & $\approx 120$ \\
+MaxIGIterations(cap) & 2000 & 2000 & 2000 \\
+\hline
+\multicolumn{4}{l}{\small Note: 'apply\_ls\_on\_best' parameter from presentation was interpreted as enabling both Initial and Final LS.} \\
+\multicolumn{4}{l}{\small 'num\_boundary\_jobs\_to\_add' is N/A as 'add\_boundary\_jobs\_to\_destroy' is False.}
+\end{tabular}
+\end{table*}
+
+\begin{table*}[ht]
+\caption{AVERAGE PERFORMANCE SUMMARY OF IG-BS-LS ON TAILLARD BENCHMARK SETS}
+\label{tab:results}
+\centering
+\begin{tabular}{lccccc}
+\hline
+\textbf{Benchmark Set} & \textbf{No. Instances} & \textbf{ARPD (\%) from UB} & \textbf{\% Impr. NEH} & \textbf{Avg. Time (s)} \\
+\hline
+tai20\_5 & 10 & 0.93\% & 2.22\% & 9.53 \\
+tai50\_10 & 10 & 2.73\% & 1.76\% & 15.43 \\
+tai100\_10 & 10 & 1.36\% & 0.79\% & 119.34 \\
+\hline
+\multicolumn{5}{l}{\small ARPD calculated using best-known Upper Bounds from Taillard. \% Impr. NEH over standalone NEH makespan.} \\
+\multicolumn{5}{l}{\small Avg. Time is per instance on AMD Ryzen 5 7535HS, 16GB RAM. Values are averages over 10 instances per set.}
+\end{tabular}
+\end{table*}
+
+\subsection{Overall Performance of IG-BS-LS}
+The specific parameter configurations for IG-BS-LS, determined by the 'skopt' tuning process for each benchmark set, are detailed in Table I. These configurations were used to generate the performance results summarized in Table II.
+
+Table II summarizes the average performance of IG-BS-LS on these Taillard benchmark sets using the configurations from Table I.
+
+The results presented in Table II highlight the robust performance of the IG-BS-LS algorithm across different problem scales. For the smaller tai20\_5 instances, IG-BS-LS achieved a low average ARPD of 0.93\%, demonstrating its ability to find solutions very close to the known upper bounds. Notably, for 3 out of the 10 instances in this set, the algorithm matched the Taillard UB (0.00\% RPD). A significant average improvement of 2.22\% over the NEH heuristic was observed. As instance size increased with the tai50\_10 set, IG-BS-LS maintained competitive performance, yielding an ARPD of 2.73\% and an average improvement of 1.76\% over NEH. For the largest instances tested, tai100\_10, IG-BS-LS produced an ARPD of 1.36\% and an improvement over NEH of 0.79\%. For one instance in this set, an RPD of only 0.26\% was achieved. The parameter tuning for this larger set favored the 'shaw' destruction method and the Makespan Lower Bound ($G_{LB}$) guide, suggesting an effective adaptation of the search strategy by the tuning process for more complex instances. The average computation times were generally close to the imposed time limits for each set. The consistent positive improvements over NEH underscore the efficacy of the iterative destruction and BS-LDS reconstruction phases.
+
+\begin{figure}[ht]
+\centerline{\includegraphics[width=\columnwidth]{0.png}}
+\caption{Summary of Average ARPD (\%) and \% Improvement over NEH for IG-BS-LS.}
+\label{fig1}
+\end{figure}
+
+\subsection{Discussion of Algorithmic Behavior and Components}
+The overall performance is a result of the interplay between the algorithm's components and tuned parameters. The parameter tuning via 'skopt' indicated that moderate to relatively large destruction sizes (k\_destroy\_percent), especially for perturbation moves (perturb\_k\_destroy\_percent often set high, e.g., 0.80 for tai20\_5, 0.48 for tai100\_10), were beneficial for escaping local optima. This suggests that extensive destruction is proved to be effective in improving solution quality. Beam widths (ibs\_beam\_width\_recon) in the range of 24-32 were generally favored, allowing for a thorough exploration during the BS-LDS reconstruction. The choice of destruction strategy showed some adaptation: while 'block' removal was robust for smaller to medium instances (tai20\_5, tai50\_10), the 'shaw' destruction was selected for the larger tai100\_10 set, where more informed, relatedness-based removal might be more effective. The add\_boundary\_jobs\_to\_destroy parameter was not favored by skopt in these specific tuned configurations. For guide functions, 'walpha\_fwd' was often chosen, highlighting the benefit of its adaptive nature in balancing makespan bounds and idle time. However, for tai100\_10, the simpler 'makespan\_bound\_fwd' was preferred, possibly indicating that for very large reconstruction tasks, a more direct bound is sufficient or less prone to misleading idle time calculations. LDS with a small number of discrepancies (max\_discrepancies\_recon = 0 to 2) allowed exploration beyond purely greedy paths.
+
+\subsection{Comparative Analysis}
+To further contextualize the performance of IG-BS-LS, we present a comparative analysis based on results generated on our testbed, focusing on solution quality (ARPD).
+
+\begin{figure}[ht]
+\centerline{\includegraphics[width=\columnwidth]{1.png}}
+\caption{Makespan RPD (\%) for IG-BS-LS against specific heuristics.}
+\label{fig2}
+\end{figure}
+
+\paragraph{Comparison with Specific Heuristics (Makespan RPD)} As illustrated in Figure 2, IG-BS-LS consistently outperforms standard constructive heuristics like NEH, Palmer, and CDS by a significant margin in terms of solution quality (lower ARPD).
+
+\paragraph{Comparison with Neighborhood-Based Metaheuristics (Makespan RPD)} When compared to single-solution neighborhood-based metaheuristics such as Simulated Annealing (SA) and a standalone Iterated Local Search (ILS), as shown in Figure 3, IG-BS-LS demonstrates superior performance in finding lower RPD values across the benchmark sets. This suggests that its combined approach is more effective than these standard methods alone within comparable computational efforts.
+
+\paragraph{Comparison with Population-Based Metaheuristics (Makespan RPD)} Figure 4 shows a comparison with several population-based metaheuristics. IG-BS-LS achieves competitive, and often better, ARPD values. While population-based methods explore multiple solutions simultaneously, the focused and powerful reconstruction of IG-BS-LS allows it to reach high-quality solutions efficiently.
+
+\begin{figure}[ht]
+\centerline{\includegraphics[width=\columnwidth]{2.png}}
+\caption{Makespan RPD (\%) for IG-BS-LS against neighborhood-based metaheuristics (SA, LS).}
+\label{fig3}
+\end{figure}
+
+\begin{figure}[ht]
+\centerline{\includegraphics[width=\columnwidth]{3.png}}
+\caption{Makespan RPD (\%) for IG-BS-LS against population-based metaheuristics (AS, ACS, GA, MA).}
+\label{fig4}
+\end{figure}
+
+\section{CONCLUSION AND FUTURE WORK}
+This paper introduced IG-BS-LS, a novel hybrid metaheuristic algorithm for solving the Permutation Flow Shop Problem (PFSP) with the objective of makespan minimization.
+Computational experiments were conducted on standard Taillard benchmark instances of varying sizes (20, 50, and 100 jobs). The parameters of IG-BS-LS were carefully tuned for each benchmark set using Bayesian optimization. The results demonstrated that IG-BS-LS is capable of achieving high-quality solutions, yielding low Average Relative Percentage Deviations (ARPDs) from known upper bounds and significant improvements over the standalone NEH heuristic. The algorithm showed competitive performance when qualitatively compared to other heuristic and metaheuristic approaches, particularly highlighting the strength of its advanced reconstruction component.
+
+Future research can extend this work in several promising directions:
+\begin{itemize}
+    \item \textbf{Enhanced Acceptance Criteria:} The current greedy acceptance criterion (or unconditional acceptance during perturbation) could be replaced or augmented with more sophisticated mechanisms, such as those inspired by Simulated Annealing, to allow for more controlled exploration of the solution space and potentially escape local optima more effectively.
+    \item \textbf{Advanced Destruction/Reconstruction Strategies:}
+    \begin{itemize}
+        \item Further refinement of the Shaw-like removal, perhaps incorporating more dynamic or learning-based methods for selecting related jobs or determining the destruction size.
+        \item Exploring alternative or adaptive guide functions for the BS-LDS reconstruction phase could lead to improved search guidance.
+        \item Investigating bi-directional beam search reconstruction, which has shown promise in some FSP contexts [16], might offer new avenues for improvement.
+    \end{itemize}
+    \item \textbf{Dynamic Parameter Control:} While parameters were tuned per benchmark set, developing online parameter adaptation mechanisms within the IG-BS-LS framework could enhance its robustness across a wider range of instance types and sizes without requiring extensive offline parameter tuning.
+\end{itemize}
+
+
+\begin{thebibliography}{00}
+\bibitem{b1} M. L. Pinedo, Scheduling: Theory, Algorithms, and Systems, 4th ed. New York, NY, USA: Springer Science \& Business Media, 2012.
+\bibitem{b2} M. R. Garey, D. S. Johnson, and R. Sethi, "The complexity of flowshop and jobshop scheduling," Mathematics of Operations Research, vol. 1, no. 2, pp. 117–129, May 1976.
+\bibitem{b3} D. S. Palmer, "Sequencing jobs through a multi-stage process in the minimum total time—A quick method of obtaining a near optimum," Journal of the Operational Research Society, vol. 16, no. 1, pp. 101–107, Mar. 1965.
+\bibitem{b4} H. G. Campbell, R. A. Dudek, and M. L. Smith, "A heuristic algorithm for the n job, m machine sequencing problem," Management Science, vol. 16, no. 10, pp. B630–B637, Jun. 1970.
+\bibitem{b5} M. Nawaz, E. E. Enscore, Jr., and I. Ham, "A heuristic algorithm for the m-machine, n-job flow-shop sequencing problem," Omega, vol. 11, no. 1, pp. 91–95, 1983.
+\bibitem{b6} H. R. Lourenço, O. C. Martin, and T. Stützle, "Iterated local search," in Handbook of Metaheuristics, F. Glover and G. A. Kochenberger, Eds. Norwell, MA, USA: Kluwer Academic Publishers, 2003, pp. 320–353.
+\bibitem{b7} R. Ruiz and T. Stützle, "A simple and effective iterated greedy algorithm for the permutation flowshop scheduling problem," European Journal of Operational Research, vol. 177, no. 3, pp. 2033–2049, Mar. 2007.
+\bibitem{b8} P. S. Ow and T. E. Morton, "Filtered beam search in scheduling," International Journal of Production Research, vol. 26, no. 1, pp. 35–62, Jan. 1988.
+\bibitem{b9} V. Fernandez-Viagas and J. M. Framinan, "Iterated-greedy-based algorithms with beam search initialization for the permutation flowshop to minimise total tardiness," Expert Systems with Applications, vol. 89, pp. 121–130, Dec. 2017.
+\bibitem{b10} W. D. Harvey and M. L. Ginsberg, "Limited discrepancy search,” in Proc. Fourteenth Int. Joint Conf. Artificial Intelligence (IJCAI-95), Montreal, Canada, Aug. 1995, vol. 1, pp. 607–615.
+\bibitem{b11} E. D. Taillard, "Benchmarks for basic scheduling problems," European Journal of Operational Research, vol. 64, no. 2, pp. 278–285, Jan. 1993.
+\bibitem{b12} E. D. Taillard, "Some efficient heuristic methods for the flow shop sequencing problem," European Journal of Operational Research, vol. 47, no. 1, pp. 65–74, Jul. 1990.
+\bibitem{b13} F. Jin, S. Song, and C. Wu, "Solving large-scale FSP with NEH algorithm based on block properties," in Proc. 6th World Congress on Intelligent Control and Automation (WCICA'06), Dalian, China, Jun. 2006, pp. 7322–7326.
+\bibitem{b14} P. Shaw, "Using constraint programming and local search methods to solve vehicle routing problems," in Principles and Practice of Constraint Programming (CP98), M. Maher and J.-F. Puget, Eds. Berlin, Heidelberg: Springer, 1998, vol. 1520 of Lecture Notes in Computer Science, pp. 417–431.
+\bibitem{b15} D. Pisinger and S. Røpke, "A general heuristic for vehicle routing problems," Computers \& Operations Research, vol. 34, no. 8, pp. 2403–2435, Aug. 2007.
+\bibitem{b16} L. Libralesso, P. A. Focke, A. Secardin, and V. Jost, "Iterative beam search algorithms for the permutation flowshop," European Journal of Operational Research, vol. 298, no. 2, pp. 450–460, Apr. 2022.
+\end{thebibliography}
+
+\end{document}
